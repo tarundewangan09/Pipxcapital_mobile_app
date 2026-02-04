@@ -1,0 +1,46 @@
+{
+  "expo": {
+    "name": "PipXcapital",
+    "slug": "PipXcapital",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/PipXcapital.png",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/PipXcapital.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#000000"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true,
+          "NSAllowsLocalNetworking": true
+        }
+      },
+      "bundleIdentifier": "com.PipXcapital.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/PipXcapital.png",
+        "backgroundColor": "#000000"
+      },
+      "edgeToEdgeEnabled": true,
+      "package": "com.PipXcapital.app"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "b998437a-a10b-49c5-8e51-020efdc57111"
+      }
+    },
+    "owner": "shivam92388",
+    "plugins": [
+      "expo-font"
+    ]
+  }
+}
