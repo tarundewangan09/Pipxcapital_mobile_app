@@ -200,7 +200,7 @@ const SignupScreen = ({ navigation }) => {
         {/* Logo */}
         <View style={styles.logoContainer}>
           <Image 
-            source={require('../../assets/PipXcapital.png')} 
+            source={require('../../assets/pipX logo.png')} 
             style={styles.logoImage}
             resizeMode="contain"
           />

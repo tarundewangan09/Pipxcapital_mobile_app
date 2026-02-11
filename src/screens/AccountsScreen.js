@@ -277,6 +277,37 @@ const AccountsScreen = ({ navigation, route }) => {
     setShowAccountTransferModal(true);
   };
 
+  const handleResetDemo = (account) => {
+    Alert.alert(
+      'Reset Demo Account',
+      'Are you sure you want to reset this demo account? All open trades will be closed and balance will be reset.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reset',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const res = await fetch(`${API_URL}/trading-accounts/${account._id}/reset-demo`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+              });
+              const data = await res.json();
+              if (data.success) {
+                Alert.alert('Success', data.message || 'Demo account reset successfully!');
+                fetchAccounts();
+              } else {
+                Alert.alert('Error', data.message || 'Failed to reset demo account');
+              }
+            } catch (e) {
+              Alert.alert('Error', 'Error resetting demo account');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   // Transfer from wallet to account
   const handleTransferFunds = async () => {
     if (!selectedAccount || !selectedAccount._id) {
@@ -803,22 +834,34 @@ const AccountsScreen = ({ navigation, route }) => {
                 </View>
 
                 {/* Action Buttons */}
-                <View style={styles.actionButtons}>
-                  <TouchableOpacity 
-                    style={[styles.depositBtn, { backgroundColor: colors.accent }]}
-                    onPress={() => handleDeposit(account)}
-                  >
-                    <Ionicons name="arrow-down-circle-outline" size={18} color="#000" />
-                    <Text style={styles.depositBtnText}>Deposit</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={[styles.withdrawBtn, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}
-                    onPress={() => handleWithdraw(account)}
-                  >
-                    <Ionicons name="arrow-up-circle-outline" size={18} color={colors.textPrimary} />
-                    <Text style={[styles.withdrawBtnText, { color: colors.textPrimary }]}>Withdraw</Text>
-                  </TouchableOpacity>
-                </View>
+                {account.isDemo || account.accountTypeId?.isDemo ? (
+                  <View style={styles.actionButtons}>
+                    <TouchableOpacity 
+                      style={[styles.resetBtn, { backgroundColor: '#eab30820', borderColor: '#eab308', borderWidth: 1 }]}
+                      onPress={() => handleResetDemo(account)}
+                    >
+                      <Ionicons name="refresh" size={18} color="#eab308" />
+                      <Text style={{ color: '#eab308', fontSize: 14, fontWeight: '600' }}>Reset Demo</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <View style={styles.actionButtons}>
+                    <TouchableOpacity 
+                      style={[styles.depositBtn, { backgroundColor: colors.accent }]}
+                      onPress={() => handleDeposit(account)}
+                    >
+                      <Ionicons name="arrow-down-circle-outline" size={18} color="#000" />
+                      <Text style={styles.depositBtnText}>Deposit</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={[styles.withdrawBtn, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}
+                      onPress={() => handleWithdraw(account)}
+                    >
+                      <Ionicons name="arrow-up-circle-outline" size={18} color={colors.textPrimary} />
+                      <Text style={[styles.withdrawBtnText, { color: colors.textPrimary }]}>Withdraw</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
 
                 {/* Trade Button */}
                 <TouchableOpacity 
@@ -1369,6 +1412,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
     marginBottom: 12,
+  },
+  resetBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 12,
+    borderRadius: 10,
   },
   depositBtn: {
     flex: 1,

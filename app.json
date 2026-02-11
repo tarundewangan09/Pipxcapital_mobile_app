@@ -4,11 +4,11 @@
     "slug": "PipXcapital",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/PipXcapital.png",
+    "icon": "./assets/pipX logo.png",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/PipXcapital.png",
+      "image": "./assets/pipX logo.png",
       "resizeMode": "contain",
       "backgroundColor": "#000000"
     },
@@ -24,7 +24,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/PipXcapital.png",
+        "foregroundImage": "./assets/pipX logo.png",
         "backgroundColor": "#000000"
       },
       "edgeToEdgeEnabled": true,
