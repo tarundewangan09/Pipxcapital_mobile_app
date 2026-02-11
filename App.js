@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { ActivityIndicator, View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
@@ -23,6 +24,9 @@ import NotificationsScreen from './src/screens/NotificationsScreen';
 import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
 import ChallengeRulesScreen from './src/screens/ChallengeRulesScreen';
 import BuyChallengeScreen from './src/screens/BuyChallengeScreen';
+import ForceUpdateScreen from './src/screens/ForceUpdateScreen';
+import { API_URL } from './src/config';
+import Constants from 'expo-constants';
 
 const Stack = createNativeStackNavigator();
 
@@ -61,7 +65,58 @@ const AppContent = () => {
   );
 };
 
+const APP_VERSION = Constants.expoConfig?.version || '2.0.0';
+
+const compareVersions = (v1, v2) => {
+  const parts1 = v1.split('.').map(Number);
+  const parts2 = v2.split('.').map(Number);
+  for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
+    const a = parts1[i] || 0;
+    const b = parts2[i] || 0;
+    if (a < b) return -1;
+    if (a > b) return 1;
+  }
+  return 0;
+};
+
 export default function App() {
+  const [needsUpdate, setNeedsUpdate] = useState(false);
+  const [updateUrl, setUpdateUrl] = useState('');
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    checkAppVersion();
+  }, []);
+
+  const checkAppVersion = async () => {
+    try {
+      const res = await fetch(`${API_URL}/app-version`);
+      const data = await res.json();
+      if (data.success && data.forceUpdate && data.minVersion) {
+        if (compareVersions(APP_VERSION, data.minVersion) < 0) {
+          setNeedsUpdate(true);
+          setUpdateUrl(data.updateUrl || '');
+        }
+      }
+    } catch (e) {
+      // If version check fails, allow app to continue
+      console.log('Version check failed:', e.message);
+    }
+    setChecking(false);
+  };
+
+  if (checking) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#dc2626" />
+      </View>
+    );
+  }
+
+  if (needsUpdate) {
+    return <ForceUpdateScreen updateUrl={updateUrl} />;
+  }
+
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#000000' }}>
       <SafeAreaProvider>
