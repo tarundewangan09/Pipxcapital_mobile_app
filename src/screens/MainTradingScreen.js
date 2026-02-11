@@ -1224,23 +1224,35 @@ const HomeTab = ({ navigation }) => {
             </View>
           </View>
 
-          {/* Deposit/Withdraw Buttons inside card */}
-          <View style={styles.cardActionButtons}>
-            <TouchableOpacity 
-              style={[styles.depositBtn, { backgroundColor: colors.primary }]}
-              onPress={() => parentNav?.navigate('Accounts', { action: 'deposit', accountId: ctx.selectedAccount?._id })}
-            >
-              <Ionicons name="arrow-down-circle-outline" size={16} color="#fff" />
-              <Text style={styles.depositBtnText}>Deposit</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.withdrawBtn, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}
-              onPress={() => parentNav?.navigate('Accounts', { action: 'withdraw', accountId: ctx.selectedAccount?._id })}
-            >
-              <Ionicons name="arrow-up-circle-outline" size={16} color={colors.textPrimary} />
-              <Text style={[styles.withdrawBtnText, { color: colors.textPrimary }]}>Withdraw</Text>
-            </TouchableOpacity>
-          </View>
+          {/* Deposit/Withdraw Buttons inside card - hide for demo accounts */}
+          {ctx.selectedAccount?.isDemo || ctx.selectedAccount?.accountTypeId?.isDemo ? (
+            <View style={styles.cardActionButtons}>
+              <TouchableOpacity 
+                style={[styles.depositBtn, { flex: 1, backgroundColor: '#eab30820', borderColor: '#eab308', borderWidth: 1 }]}
+                onPress={() => parentNav?.navigate('Accounts', { activeTab: 'demo' })}
+              >
+                <Ionicons name="refresh" size={16} color="#eab308" />
+                <Text style={{ color: '#eab308', fontSize: 14, fontWeight: '600' }}>Reset Demo</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.cardActionButtons}>
+              <TouchableOpacity 
+                style={[styles.depositBtn, { backgroundColor: colors.primary }]}
+                onPress={() => parentNav?.navigate('Accounts', { action: 'deposit', accountId: ctx.selectedAccount?._id })}
+              >
+                <Ionicons name="arrow-down-circle-outline" size={16} color="#fff" />
+                <Text style={styles.depositBtnText}>Deposit</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.withdrawBtn, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}
+                onPress={() => parentNav?.navigate('Accounts', { action: 'withdraw', accountId: ctx.selectedAccount?._id })}
+              >
+                <Ionicons name="arrow-up-circle-outline" size={16} color={colors.textPrimary} />
+                <Text style={[styles.withdrawBtnText, { color: colors.textPrimary }]}>Withdraw</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       )}
 
@@ -1819,17 +1831,6 @@ const QuotesTab = ({ navigation }) => {
           <Text style={styles.bidPrice}>{prices.bid?.toFixed(prices.bid > 100 ? 2 : 5) || '...'}</Text>
           <Text style={[styles.priceLabel, { color: colors.textMuted }]}>Bid</Text>
         </View>
-        <View style={[styles.spreadBadgeCol, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>
-          <Text style={[styles.spreadBadgeText, { color: colors.accent }]}>
-            {ctx.adminSpreads[item.symbol]?.spread > 0 
-              ? (item.symbol.includes('JPY') 
-                  ? (ctx.adminSpreads[item.symbol].spread * 100).toFixed(1)
-                  : prices.bid > 100 
-                    ? ctx.adminSpreads[item.symbol].spread.toFixed(2)
-                    : (ctx.adminSpreads[item.symbol].spread * 10000).toFixed(1))
-              : (prices.bid && prices.ask ? ((prices.ask - prices.bid) * (prices.bid > 100 ? 1 : 10000)).toFixed(1) : '-')}
-          </Text>
-        </View>
         <View style={styles.instrumentPriceCol}>
           <Text style={styles.askPrice}>{prices.ask?.toFixed(prices.ask > 100 ? 2 : 5) || '...'}</Text>
           <Text style={[styles.priceLabel, { color: colors.textMuted }]}>Ask</Text>
@@ -2045,14 +2046,6 @@ const QuotesTab = ({ navigation }) => {
                 </TouchableOpacity>
               </View>
 
-              {/* Spread Info */}
-              <View style={styles.spreadInfoRow}>
-                <Text style={[styles.spreadInfoText, { color: colors.textMuted }]}>
-                  Spread: {ctx.livePrices[selectedInstrument?.symbol]?.bid ? 
-                    ((ctx.livePrices[selectedInstrument?.symbol]?.ask - ctx.livePrices[selectedInstrument?.symbol]?.bid) * 
-                    (selectedInstrument?.category === 'Forex' ? 10000 : 1)).toFixed(1) : '-'} pips
-                </Text>
-              </View>
 
               {/* SL Mandatory Warning for Challenge Accounts */}
               {ctx.isChallengeMode && ctx.selectedChallengeAccount?.challengeId?.rules?.stopLossMandatory && (
