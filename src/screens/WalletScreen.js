@@ -18,6 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as SecureStore from 'expo-secure-store';
 import * as Clipboard from 'expo-clipboard';
+import { WebView } from 'react-native-webview';
 import { API_URL } from '../config';
 import { useTheme } from '../context/ThemeContext';
 
@@ -49,6 +50,15 @@ const WalletScreen = ({ navigation }) => {
   });
   const [upiId, setUpiId] = useState('');
 
+  // OxaPay Crypto states
+  const [oxapayEnabled, setOxapayEnabled] = useState(false);
+  const [oxapayLoading, setOxapayLoading] = useState(false);
+  const [paymentWebViewUrl, setPaymentWebViewUrl] = useState(null);
+  const [withdrawMethod, setWithdrawMethod] = useState('bank');
+  const [cryptoWithdrawAddress, setCryptoWithdrawAddress] = useState('');
+  const [cryptoWithdrawCurrency, setCryptoWithdrawCurrency] = useState('USDT');
+  const [cryptoWithdrawNetwork, setCryptoWithdrawNetwork] = useState('TRC20');
+
   useEffect(() => {
     loadUser();
   }, []);
@@ -64,6 +74,7 @@ const WalletScreen = ({ navigation }) => {
       // Fetch payment methods and currencies in background
       fetchPaymentMethods();
       fetchCurrencies();
+      fetchOxapayStatus();
     }
   }, [user]);
 
@@ -81,6 +92,108 @@ const WalletScreen = ({ navigation }) => {
     if (!currency || currency.currency === 'USD') return localAmt;
     const effectiveRate = currency.rateToUSD * (1 + (currency.markup || 0) / 100);
     return localAmt / effectiveRate;
+  };
+
+  const fetchOxapayStatus = async () => {
+    try {
+      const res = await fetch(`${API_URL}/oxapay/status`);
+      const data = await res.json();
+      if (data.success) {
+        setOxapayEnabled(data.depositEnabled);
+      }
+    } catch (error) {
+      console.error('Error fetching OxaPay status:', error);
+    }
+  };
+
+  const handleCryptoDeposit = async () => {
+    if (!localAmount || parseFloat(localAmount) <= 0) {
+      Alert.alert('Error', 'Please enter a valid amount');
+      return;
+    }
+
+    setOxapayLoading(true);
+    try {
+      const usdAmount = selectedCurrency && selectedCurrency.currency !== 'USD'
+        ? calculateUSDAmount(parseFloat(localAmount), selectedCurrency)
+        : parseFloat(localAmount);
+
+      const res = await fetch(`${API_URL}/oxapay/create-payment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user._id,
+          amount: usdAmount,
+          currency: 'USD'
+        })
+      });
+
+      const data = await res.json();
+
+      if (data.success && data.paymentUrl) {
+        setShowDepositModal(false);
+        setLocalAmount('');
+        setSelectedMethod(null);
+        setSelectedCurrency({ currency: 'USD', symbol: '$', rateToUSD: 1, markup: 0 });
+        // Open payment in in-app WebView
+        setPaymentWebViewUrl(data.paymentUrl);
+      } else {
+        Alert.alert('Error', data.message || 'Failed to create crypto payment');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Error creating crypto payment: ' + error.message);
+    } finally {
+      setOxapayLoading(false);
+    }
+  };
+
+  const handleCryptoWithdraw = async () => {
+    if (!amount || parseFloat(amount) <= 0) {
+      Alert.alert('Error', 'Please enter a valid amount');
+      return;
+    }
+    if (!cryptoWithdrawAddress) {
+      Alert.alert('Error', 'Please enter your crypto wallet address');
+      return;
+    }
+    if (parseFloat(amount) > (wallet?.balance || 0)) {
+      Alert.alert('Error', 'Insufficient balance');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const res = await fetch(`${API_URL}/wallet/withdraw`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user._id,
+          amount: parseFloat(amount),
+          paymentMethod: 'Crypto',
+          cryptoAddress: cryptoWithdrawAddress,
+          cryptoCurrency: cryptoWithdrawCurrency,
+          cryptoNetwork: cryptoWithdrawNetwork
+        })
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        Alert.alert('Success', 'Crypto withdrawal request submitted! It will be processed after admin approval.');
+        setShowWithdrawModal(false);
+        setAmount('');
+        setCryptoWithdrawAddress('');
+        setCryptoWithdrawCurrency('USDT');
+        setCryptoWithdrawNetwork('TRC20');
+        setWithdrawMethod('bank');
+        setSelectedMethod(null);
+        fetchWalletData();
+      } else {
+        Alert.alert('Error', data.message || 'Failed to create withdrawal');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Error creating withdrawal: ' + error.message);
+    }
+    setIsSubmitting(false);
   };
 
   const loadUser = async () => {
@@ -491,11 +604,36 @@ const WalletScreen = ({ navigation }) => {
                     </Text>
                   </TouchableOpacity>
                 ))}
+                {oxapayEnabled && (
+                  <TouchableOpacity
+                    style={[styles.methodCard, { backgroundColor: colors.bgSecondary, borderColor: colors.border }, selectedMethod?.type === 'Crypto' && { backgroundColor: '#f97316', borderColor: '#f97316' }]}
+                    onPress={() => setSelectedMethod({ _id: 'crypto', type: 'Crypto' })}
+                  >
+                    <Ionicons name="logo-bitcoin" size={16} color={selectedMethod?.type === 'Crypto' ? '#fff' : '#f97316'} style={{ marginRight: 4 }} />
+                    <Text style={[styles.methodName, { color: colors.textPrimary }, selectedMethod?.type === 'Crypto' && { color: '#fff' }]}>
+                      Crypto
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </ScrollView>
             )}
 
+            {/* Crypto Deposit Info */}
+            {selectedMethod?.type === 'Crypto' && (
+              <View style={[styles.cryptoInfoBox, { backgroundColor: '#f9731620', borderColor: '#f9731650' }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <Ionicons name="logo-bitcoin" size={18} color="#f97316" />
+                  <Text style={{ color: '#f97316', fontWeight: '600', fontSize: 14 }}>Crypto Payment via OxaPay</Text>
+                </View>
+                <Text style={{ color: '#999', fontSize: 12, lineHeight: 18 }}>
+                  You will be redirected to OxaPay to complete payment in cryptocurrency. Your deposit will be{' '}
+                  <Text style={{ color: '#22c55e', fontWeight: '600' }}>auto-credited</Text> to your wallet once the blockchain confirms the transaction.
+                </Text>
+              </View>
+            )}
+
             {/* Payment Method Details */}
-            {selectedMethod && (
+            {selectedMethod && selectedMethod.type !== 'Crypto' && (
               <View style={[styles.methodDetails, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>
                 {selectedMethod.type === 'Bank Transfer' && (
                   <>
@@ -551,26 +689,48 @@ const WalletScreen = ({ navigation }) => {
               </View>
             )}
 
-            <Text style={[styles.inputLabel, { color: colors.textMuted }]}>Transaction ID / Reference Number *</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: colors.bgSecondary, borderColor: colors.border, color: colors.textPrimary }]}
-              value={transactionRef}
-              onChangeText={setTransactionRef}
-              placeholder="Enter transaction ID or reference"
-              placeholderTextColor={colors.textMuted}
-            />
+            {/* Transaction ref - only for non-crypto */}
+            {selectedMethod?.type !== 'Crypto' && (
+              <>
+                <Text style={[styles.inputLabel, { color: colors.textMuted }]}>Transaction ID / Reference Number *</Text>
+                <TextInput
+                  style={[styles.input, { backgroundColor: colors.bgSecondary, borderColor: colors.border, color: colors.textPrimary }]}
+                  value={transactionRef}
+                  onChangeText={setTransactionRef}
+                  placeholder="Enter transaction ID or reference"
+                  placeholderTextColor={colors.textMuted}
+                />
+              </>
+            )}
 
-            <TouchableOpacity 
-              style={[styles.submitBtn, { backgroundColor: colors.accent }, isSubmitting && styles.submitBtnDisabled]} 
-              onPress={handleDeposit}
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={[styles.submitBtnText, { color: '#fff' }]}>Submit Deposit Request</Text>
-              )}
-            </TouchableOpacity>
+            {selectedMethod?.type === 'Crypto' ? (
+              <TouchableOpacity 
+                style={[styles.submitBtn, { backgroundColor: '#f97316' }, oxapayLoading && styles.submitBtnDisabled]} 
+                onPress={handleCryptoDeposit}
+                disabled={oxapayLoading}
+              >
+                {oxapayLoading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Ionicons name="open-outline" size={18} color="#fff" />
+                    <Text style={[styles.submitBtnText, { color: '#fff' }]}>Pay with Crypto</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity 
+                style={[styles.submitBtn, { backgroundColor: colors.accent }, isSubmitting && styles.submitBtnDisabled]} 
+                onPress={handleDeposit}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={[styles.submitBtnText, { color: '#fff' }]}>Submit Deposit Request</Text>
+                )}
+              </TouchableOpacity>
+            )}
             <View style={{ height: 40 }} />
           </ScrollView>
           </SafeAreaView>
@@ -596,6 +756,10 @@ const WalletScreen = ({ navigation }) => {
                   setShowWithdrawModal(false);
                   setAmount('');
                   setSelectedMethod(null);
+                  setWithdrawMethod('bank');
+                  setCryptoWithdrawAddress('');
+                  setCryptoWithdrawCurrency('USDT');
+                  setCryptoWithdrawNetwork('TRC20');
                 }} style={{ padding: 4 }}>
                   <Ionicons name="close" size={24} color={colors.textMuted} />
                 </TouchableOpacity>
@@ -604,6 +768,27 @@ const WalletScreen = ({ navigation }) => {
             <View style={[styles.availableBalance, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>
               <Text style={[styles.availableLabel, { color: colors.textMuted }]}>Available Balance</Text>
               <Text style={[styles.availableAmount, { color: colors.accent }]}>${wallet.balance?.toLocaleString()}</Text>
+            </View>
+
+            {/* Withdrawal Method Selector */}
+            <Text style={[styles.inputLabel, { color: colors.textMuted }]}>Withdrawal Method</Text>
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+              <TouchableOpacity
+                style={[styles.withdrawMethodBtn, { backgroundColor: colors.bgSecondary, borderColor: colors.border }, withdrawMethod === 'bank' && { borderColor: colors.accent, backgroundColor: colors.accent + '15' }]}
+                onPress={() => { setWithdrawMethod('bank'); setSelectedMethod(null); }}
+              >
+                <Ionicons name="business" size={18} color={withdrawMethod === 'bank' ? colors.accent : colors.textMuted} />
+                <Text style={[styles.withdrawMethodText, { color: withdrawMethod === 'bank' ? colors.accent : colors.textPrimary }]}>Bank / UPI</Text>
+              </TouchableOpacity>
+              {oxapayEnabled && (
+                <TouchableOpacity
+                  style={[styles.withdrawMethodBtn, { backgroundColor: colors.bgSecondary, borderColor: colors.border }, withdrawMethod === 'crypto' && { borderColor: '#f97316', backgroundColor: '#f9731615' }]}
+                  onPress={() => { setWithdrawMethod('crypto'); setSelectedMethod(null); }}
+                >
+                  <Ionicons name="logo-bitcoin" size={18} color={withdrawMethod === 'crypto' ? '#f97316' : colors.textMuted} />
+                  <Text style={[styles.withdrawMethodText, { color: withdrawMethod === 'crypto' ? '#f97316' : colors.textPrimary }]}>Crypto</Text>
+                </TouchableOpacity>
+              )}
             </View>
 
             <Text style={[styles.inputLabel, { color: colors.textMuted }]}>Amount (USD)</Text>
@@ -616,23 +801,76 @@ const WalletScreen = ({ navigation }) => {
               keyboardType="numeric"
             />
 
-            <Text style={[styles.inputLabel, { color: colors.textMuted }]}>Payment Method</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.methodsScroll}>
-              {paymentMethods.filter(m => m.type !== 'QR Code').map((method) => (
-                <TouchableOpacity
-                  key={method._id}
-                  style={[styles.methodCard, { backgroundColor: colors.bgSecondary, borderColor: colors.border }, selectedMethod?._id === method._id && styles.methodCardActive]}
-                  onPress={() => setSelectedMethod(method)}
-                >
-                  <Text style={[styles.methodName, { color: colors.textPrimary }, selectedMethod?._id === method._id && { color: '#fff' }]}>
-                    {method.type || method.name}
+            {/* Bank/UPI Method Selection */}
+            {withdrawMethod === 'bank' && (
+              <>
+                <Text style={[styles.inputLabel, { color: colors.textMuted }]}>Payment Method</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.methodsScroll}>
+                  {paymentMethods.filter(m => m.type !== 'QR Code').map((method) => (
+                    <TouchableOpacity
+                      key={method._id}
+                      style={[styles.methodCard, { backgroundColor: colors.bgSecondary, borderColor: colors.border }, selectedMethod?._id === method._id && styles.methodCardActive]}
+                      onPress={() => setSelectedMethod(method)}
+                    >
+                      <Text style={[styles.methodName, { color: colors.textPrimary }, selectedMethod?._id === method._id && { color: '#fff' }]}>
+                        {method.type || method.name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </>
+            )}
+
+            {/* Crypto Withdrawal Fields */}
+            {withdrawMethod === 'crypto' && (
+              <View style={{ marginTop: 8 }}>
+                <Text style={[styles.inputLabel, { color: colors.textMuted }]}>Crypto Currency</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
+                  {['USDT', 'BTC', 'ETH', 'LTC', 'TRX', 'USDC'].map((curr) => (
+                    <TouchableOpacity
+                      key={curr}
+                      style={[styles.cryptoChip, { backgroundColor: colors.bgSecondary, borderColor: colors.border }, cryptoWithdrawCurrency === curr && { backgroundColor: '#f97316', borderColor: '#f97316' }]}
+                      onPress={() => setCryptoWithdrawCurrency(curr)}
+                    >
+                      <Text style={[{ fontSize: 12, fontWeight: '500', color: colors.textPrimary }, cryptoWithdrawCurrency === curr && { color: '#fff' }]}>{curr}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <Text style={[styles.inputLabel, { color: colors.textMuted }]}>Network</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
+                  {['TRC20', 'ERC20', 'BEP20', 'Bitcoin', 'Litecoin', 'Polygon'].map((net) => (
+                    <TouchableOpacity
+                      key={net}
+                      style={[styles.cryptoChip, { backgroundColor: colors.bgSecondary, borderColor: colors.border }, cryptoWithdrawNetwork === net && { backgroundColor: '#f97316', borderColor: '#f97316' }]}
+                      onPress={() => setCryptoWithdrawNetwork(net)}
+                    >
+                      <Text style={[{ fontSize: 12, fontWeight: '500', color: colors.textPrimary }, cryptoWithdrawNetwork === net && { color: '#fff' }]}>{net}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <Text style={[styles.inputLabel, { color: colors.textMuted }]}>Wallet Address</Text>
+                <TextInput
+                  style={[styles.input, { backgroundColor: colors.bgSecondary, borderColor: colors.border, color: colors.textPrimary }]}
+                  value={cryptoWithdrawAddress}
+                  onChangeText={setCryptoWithdrawAddress}
+                  placeholder="Enter your crypto wallet address"
+                  placeholderTextColor={colors.textMuted}
+                  autoCapitalize="none"
+                />
+
+                <View style={[styles.cryptoInfoBox, { backgroundColor: '#f9731620', borderColor: '#f9731650', marginTop: 12 }]}>
+                  <Text style={{ color: '#999', fontSize: 12, lineHeight: 18 }}>
+                    <Text style={{ color: '#f97316', fontWeight: '600' }}>Note: </Text>
+                    Crypto withdrawals require admin approval. Once approved, funds will be sent to your wallet address via OxaPay.
                   </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+                </View>
+              </View>
+            )}
 
             {/* Bank Transfer Input Fields */}
-            {selectedMethod?.type === 'Bank Transfer' && (
+            {withdrawMethod === 'bank' && selectedMethod?.type === 'Bank Transfer' && (
               <View style={{ marginTop: 8 }}>
                 <Text style={[styles.inputLabel, { color: colors.textMuted }]}>Account Holder Name *</Text>
                 <TextInput
@@ -675,7 +913,7 @@ const WalletScreen = ({ navigation }) => {
             )}
 
             {/* UPI Input Field */}
-            {selectedMethod?.type === 'UPI' && (
+            {withdrawMethod === 'bank' && selectedMethod?.type === 'UPI' && (
               <View style={{ marginTop: 8 }}>
                 <Text style={[styles.inputLabel, { color: colors.textMuted }]}>UPI ID *</Text>
                 <TextInput
@@ -689,21 +927,76 @@ const WalletScreen = ({ navigation }) => {
               </View>
             )}
 
-            <TouchableOpacity 
-              style={[styles.submitBtn, { backgroundColor: colors.accent }, isSubmitting && styles.submitBtnDisabled]} 
-              onPress={handleWithdraw}
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={[styles.submitBtnText, { color: '#fff' }]}>Submit Withdrawal Request</Text>
-              )}
-            </TouchableOpacity>
+            {withdrawMethod === 'crypto' ? (
+              <TouchableOpacity 
+                style={[styles.submitBtn, { backgroundColor: '#f97316' }, isSubmitting && styles.submitBtnDisabled]} 
+                onPress={handleCryptoWithdraw}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Ionicons name="logo-bitcoin" size={18} color="#fff" />
+                    <Text style={[styles.submitBtnText, { color: '#fff' }]}>Withdraw Crypto</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity 
+                style={[styles.submitBtn, { backgroundColor: colors.accent }, isSubmitting && styles.submitBtnDisabled]} 
+                onPress={handleWithdraw}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={[styles.submitBtnText, { color: '#fff' }]}>Submit Withdrawal Request</Text>
+                )}
+              </TouchableOpacity>
+            )}
             <View style={{ height: 40 }} />
           </ScrollView>
         </SafeAreaView>
       </KeyboardAvoidingView>
+      </Modal>
+
+      {/* OxaPay Payment WebView Modal */}
+      <Modal visible={!!paymentWebViewUrl} animationType="slide" onRequestClose={() => { setPaymentWebViewUrl(null); fetchWalletData(); }}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.bgPrimary }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: colors.bgCard, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+            <Text style={{ color: colors.textPrimary, fontSize: 16, fontWeight: '600' }}>Crypto Payment</Text>
+            <TouchableOpacity
+              onPress={() => {
+                setPaymentWebViewUrl(null);
+                fetchWalletData();
+                Alert.alert('Payment', 'If you completed the payment, your deposit will be auto-credited once confirmed on the blockchain.');
+              }}
+              style={{ paddingHorizontal: 16, paddingVertical: 8, backgroundColor: colors.accent, borderRadius: 8 }}
+            >
+              <Text style={{ color: '#000', fontWeight: '600', fontSize: 14 }}>Done</Text>
+            </TouchableOpacity>
+          </View>
+          <WebView
+            source={{ uri: paymentWebViewUrl }}
+            style={{ flex: 1 }}
+            startInLoadingState={true}
+            renderLoading={() => (
+              <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.bgPrimary }}>
+                <ActivityIndicator size="large" color={colors.accent} />
+                <Text style={{ color: colors.textMuted, marginTop: 12 }}>Loading payment page...</Text>
+              </View>
+            )}
+            onNavigationStateChange={(navState) => {
+              // If redirected back to return URL, close WebView
+              if (navState.url && navState.url.includes('deposit=success')) {
+                setPaymentWebViewUrl(null);
+                fetchWalletData();
+                Alert.alert('Payment Submitted', 'Your deposit will be auto-credited once the blockchain confirms the transaction.');
+              }
+            }}
+          />
+        </SafeAreaView>
       </Modal>
     </View>
   );
@@ -790,6 +1083,12 @@ const styles = StyleSheet.create({
   // QR Code styles
   qrContainer: { alignItems: 'center', marginTop: 8 },
   qrImage: { width: 200, height: 200, marginTop: 12, borderRadius: 8 },
+
+  // Crypto / OxaPay styles
+  cryptoInfoBox: { borderRadius: 12, padding: 16, borderWidth: 1, marginTop: 12 },
+  cryptoChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, borderWidth: 1 },
+  withdrawMethodBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 12, borderWidth: 1 },
+  withdrawMethodText: { fontSize: 14, fontWeight: '600' },
 });
 
 export default WalletScreen;
