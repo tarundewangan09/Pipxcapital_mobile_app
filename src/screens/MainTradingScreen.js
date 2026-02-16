@@ -2607,13 +2607,17 @@ const TradeTab = () => {
       
       console.log('Updating SL/TP:', { tradeId: selectedTrade._id, sl: slValue, tp: tpValue });
       
+      const tradeSymbol = selectedTrade.symbol;
+      const prices = ctx.livePrices[tradeSymbol] || {};
       const res = await fetch(`${API_URL}/trade/modify`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tradeId: selectedTrade._id,
           sl: slValue,
-          tp: tpValue
+          tp: tpValue,
+          bid: prices.bid || null,
+          ask: prices.ask || null
         })
       });
       const data = await res.json();
