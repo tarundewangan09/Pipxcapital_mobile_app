@@ -324,7 +324,7 @@ const ProfileScreen = ({ navigation }) => {
         name: 'selfie.jpg',
       });
 
-      console.log('Submitting KYC with FormData...');
+      console.log('Submitting KYC with FormData to:', `${API_URL}/kyc/submit-files`);
       const res = await fetch(`${API_URL}/kyc/submit-files`, {
         method: 'POST',
         headers: {
@@ -332,7 +332,20 @@ const ProfileScreen = ({ navigation }) => {
         },
         body: formData,
       });
-      const data = await res.json();
+      
+      const responseText = await res.text();
+      console.log('KYC submit raw response:', responseText.substring(0, 200));
+      
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseErr) {
+        console.error('KYC response parse error:', parseErr, 'Response:', responseText.substring(0, 500));
+        Alert.alert('Error', 'Server returned an invalid response. Please try again or contact support.');
+        setIsSubmitting(false);
+        return;
+      }
+      
       console.log('KYC submit response:', data);
       if (data.success || data.kyc) {
         Alert.alert('Success', 'KYC documents submitted successfully. Please wait for verification.');
