@@ -1241,7 +1241,13 @@ const AccountsScreen = ({ navigation, route }) => {
 
             <Text style={[styles.inputLabel, { color: colors.textMuted }]}>Select Target Account</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.accountsScroll}>
-              {accounts.filter(a => a._id !== selectedAccount?._id).map(account => (
+              {accounts.filter(a => {
+                if (a._id === selectedAccount?._id) return false;
+                // Only show accounts of the same type (demo to demo, real to real)
+                const sourceIsDemo = selectedAccount?.isDemo || selectedAccount?.accountTypeId?.isDemo;
+                const targetIsDemo = a.isDemo || a.accountTypeId?.isDemo;
+                return sourceIsDemo === targetIsDemo;
+              }).map(account => (
                 <TouchableOpacity
                   key={account._id}
                   style={[styles.accountSelectCard, { backgroundColor: colors.bgSecondary, borderColor: colors.border }, targetAccount?._id === account._id && styles.accountSelectCardActive]}
