@@ -144,7 +144,7 @@ const OrderBookScreen = ({ navigation }) => {
       const regularPromises = regularToFetch.map(async (account) => {
         const [openRes, historyRes, pendingRes] = await Promise.all([
           fetch(`${API_URL}/trade/open/${account._id}`),
-          fetch(`${API_URL}/trade/history/${account._id}?limit=20`),
+          fetch(`${API_URL}/trade/history/${account._id}?limit=0`),
           fetch(`${API_URL}/trade/pending/${account._id}`)
         ]);
 
@@ -165,7 +165,7 @@ const OrderBookScreen = ({ navigation }) => {
       const challengePromises = challengeToFetch.map(async (challenge) => {
         const [openRes, historyRes, pendingRes] = await Promise.all([
           fetch(`${API_URL}/trade/open/${challenge._id}`),
-          fetch(`${API_URL}/trade/history/${challenge._id}?limit=20`),
+          fetch(`${API_URL}/trade/history/${challenge._id}?limit=0`),
           fetch(`${API_URL}/trade/pending/${challenge._id}`)
         ]);
 
