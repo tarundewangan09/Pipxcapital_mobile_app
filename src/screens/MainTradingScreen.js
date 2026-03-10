@@ -1733,7 +1733,7 @@ const QuotesTab = ({ navigation }) => {
         segment: segment,
         side: effectiveSide,
         orderType: orderType === 'MARKET' ? 'MARKET' : `${effectiveSide}_${pendingType}`,
-        quantity: parseFloat(volume) || 0.01,
+        quantity: Math.round((parseFloat(volume) || 0.01) * 100) / 100,
         bid: finalBid,
         ask: finalAsk,
         leverage: getAccountLeverage(),
@@ -2112,7 +2112,7 @@ const QuotesTab = ({ navigation }) => {
                   <TouchableOpacity 
                     style={[styles.volumeControlBtn, { backgroundColor: colors.accent }]} 
                     onPress={() => {
-                      const newVol = Math.max(0.01, volume - 0.01);
+                      const newVol = Math.round(Math.max(0.01, volume - 0.01) * 100) / 100;
                       setVolume(newVol);
                       setVolumeText(newVol.toFixed(2));
                     }}
@@ -2145,8 +2145,10 @@ const QuotesTab = ({ navigation }) => {
                         setVolumeText('0.01');
                         setVolume(0.01);
                       } else {
-                        setVolume(val);
-                        setVolumeText(val.toFixed(2));
+                        // Round to 2 decimal places to avoid floating point issues
+                        const roundedVal = Math.round(val * 100) / 100;
+                        setVolume(roundedVal);
+                        setVolumeText(roundedVal.toFixed(2));
                       }
                     }}
                     keyboardType="decimal-pad"
@@ -2155,7 +2157,7 @@ const QuotesTab = ({ navigation }) => {
                   <TouchableOpacity 
                     style={[styles.volumeControlBtn, { backgroundColor: colors.accent }]} 
                     onPress={() => {
-                      const newVol = volume + 0.01;
+                      const newVol = Math.round((volume + 0.01) * 100) / 100;
                       setVolume(newVol);
                       setVolumeText(newVol.toFixed(2));
                     }}
