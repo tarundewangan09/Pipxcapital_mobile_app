@@ -2463,24 +2463,43 @@ const TradeTab = () => {
       : (trade.openPrice - currentPrice) * trade.quantity * trade.contractSize;
   };
 
-  // Close single trade
+  // Close single trade - fetch fresh prices from API to prevent stale price exploitation
   const closeTrade = async (trade) => {
     if (closingTradeId) return;
-    const prices = ctx.livePrices[trade.symbol];
-    if (!prices?.bid || !prices?.ask) {
-      toast?.showToast('No price data available', 'error');
-      return;
-    }
     
     setClosingTradeId(trade._id);
+    toast?.showToast('Fetching live price...', 'info');
+    
     try {
+      // Fetch fresh prices from API instead of using potentially stale cached prices
+      const priceRes = await fetch(`${API_URL}/prices/${trade.symbol}`);
+      const priceData = await priceRes.json();
+      
+      let freshBid, freshAsk;
+      
+      if (priceData.success && priceData.price?.bid && priceData.price?.ask) {
+        // Use fresh prices from API
+        freshBid = priceData.price.bid;
+        freshAsk = priceData.price.ask;
+      } else {
+        // Fallback to cached prices only if API fails, but check if they exist
+        const cachedPrices = ctx.livePrices[trade.symbol];
+        if (!cachedPrices?.bid || !cachedPrices?.ask) {
+          toast?.showToast('No price data available. Please wait for market data.', 'error');
+          setClosingTradeId(null);
+          return;
+        }
+        freshBid = cachedPrices.bid;
+        freshAsk = cachedPrices.ask;
+      }
+      
       const res = await fetch(`${API_URL}/trade/close`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tradeId: trade._id,
-          bid: prices.bid,
-          ask: prices.ask
+          bid: freshBid,
+          ask: freshAsk
         })
       });
       const data = await res.json();
@@ -2518,17 +2537,30 @@ const TradeTab = () => {
 
     let closedCount = 0;
     for (const trade of tradesToClose) {
-      const prices = ctx.livePrices[trade.symbol];
-      if (!prices?.bid || !prices?.ask) continue;
-      
       try {
+        // Fetch fresh prices from API to prevent stale price exploitation
+        const priceRes = await fetch(`${API_URL}/prices/${trade.symbol}`);
+        const priceData = await priceRes.json();
+        
+        let freshBid, freshAsk;
+        if (priceData.success && priceData.price?.bid && priceData.price?.ask) {
+          freshBid = priceData.price.bid;
+          freshAsk = priceData.price.ask;
+        } else {
+          // Fallback to cached prices
+          const cachedPrices = ctx.livePrices[trade.symbol];
+          if (!cachedPrices?.bid || !cachedPrices?.ask) continue;
+          freshBid = cachedPrices.bid;
+          freshAsk = cachedPrices.ask;
+        }
+        
         const res = await fetch(`${API_URL}/trade/close`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             tradeId: trade._id,
-            bid: prices.bid,
-            ask: prices.ask
+            bid: freshBid,
+            ask: freshAsk
           })
         });
         const data = await res.json();
@@ -2552,15 +2584,28 @@ const TradeTab = () => {
     let closedTrades = 0;
     let cancelledOrders = 0;
 
-    // Close all open trades
+    // Close all open trades with fresh prices
     for (const trade of ctx.openTrades) {
-      const prices = ctx.livePrices[trade.symbol];
-      if (!prices?.bid || !prices?.ask) continue;
       try {
+        // Fetch fresh prices from API to prevent stale price exploitation
+        const priceRes = await fetch(`${API_URL}/prices/${trade.symbol}`);
+        const priceData = await priceRes.json();
+        
+        let freshBid, freshAsk;
+        if (priceData.success && priceData.price?.bid && priceData.price?.ask) {
+          freshBid = priceData.price.bid;
+          freshAsk = priceData.price.ask;
+        } else {
+          const cachedPrices = ctx.livePrices[trade.symbol];
+          if (!cachedPrices?.bid || !cachedPrices?.ask) continue;
+          freshBid = cachedPrices.bid;
+          freshAsk = cachedPrices.ask;
+        }
+        
         const res = await fetch(`${API_URL}/trade/close`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tradeId: trade._id, bid: prices.bid, ask: prices.ask })
+          body: JSON.stringify({ tradeId: trade._id, bid: freshBid, ask: freshAsk })
         });
         const data = await res.json();
         if (data.success) closedTrades++;
