@@ -1748,7 +1748,6 @@ const QuotesTab = ({ navigation }) => {
     });
     
     setIsExecuting(true);
-    toast?.showToast('Fetching live price...', 'info');
     
     try {
       // Fetch fresh prices from API to prevent stale price exploitation
@@ -2540,7 +2539,6 @@ const TradeTab = () => {
     if (closingTradeId) return;
     
     setClosingTradeId(trade._id);
-    toast?.showToast('Fetching live price...', 'info');
     
     try {
       // Fetch fresh prices from API instead of using potentially stale cached prices
@@ -3623,7 +3621,6 @@ const ChartTab = ({ route }) => {
     }
     
     setIsExecuting(true);
-    toast?.showToast('Fetching live price...', 'info');
     
     try {
       // Fetch fresh prices from API to prevent stale price exploitation
@@ -3714,7 +3711,6 @@ const ChartTab = ({ route }) => {
     }
     
     setIsExecuting(true);
-    toast?.showToast('Fetching live price...', 'info');
     
     try {
       // Fetch fresh prices from API to prevent stale price exploitation
