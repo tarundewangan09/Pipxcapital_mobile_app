@@ -19,6 +19,7 @@ import {
   Alert,
   Linking,
   Image,
+  AppState,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Swipeable, GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -358,6 +359,58 @@ const TradingProvider = ({ children, navigation, route }) => {
       clearInterval(slTpInterval);
     };
   }, []);
+
+  // Refresh prices when app comes back to foreground (prevents stale price exploitation)
+  useEffect(() => {
+    const refreshAllPrices = async () => {
+      try {
+        // Fetch fresh prices for all instruments
+        const symbolsToFetch = instruments.slice(0, 10).map(i => i.symbol); // Fetch top 10 instruments
+        const pricePromises = symbolsToFetch.map(async (symbol) => {
+          try {
+            const res = await fetch(`${API_URL}/prices/${symbol}`);
+            const data = await res.json();
+            if (data.success && data.price?.bid && data.price?.ask) {
+              return { symbol, price: data.price };
+            }
+          } catch (e) {
+            console.error(`Error fetching price for ${symbol}:`, e);
+          }
+          return null;
+        });
+        
+        const results = await Promise.all(pricePromises);
+        const freshPrices = {};
+        results.forEach(r => {
+          if (r) freshPrices[r.symbol] = r.price;
+        });
+        
+        if (Object.keys(freshPrices).length > 0) {
+          setLivePrices(prev => ({ ...prev, ...freshPrices }));
+          setInstruments(prev => prev.map(inst => {
+            const price = freshPrices[inst.symbol];
+            if (price && price.bid) {
+              return { ...inst, bid: price.bid, ask: price.ask || price.bid, spread: Math.abs((price.ask || price.bid) - price.bid) };
+            }
+            return inst;
+          }));
+        }
+      } catch (e) {
+        console.error('Error refreshing prices on foreground:', e);
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'active') {
+        // App came to foreground - refresh prices immediately
+        refreshAllPrices();
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [instruments]);
 
   const fetchAdminSpreads = async () => {
     try {
