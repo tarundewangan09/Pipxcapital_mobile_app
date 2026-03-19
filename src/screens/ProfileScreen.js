@@ -14,6 +14,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as SecureStore from 'expo-secure-store';
 import * as ImagePicker from 'expo-image-picker';
+import * as Updates from 'expo-updates';
 import { API_URL, API_BASE_URL } from '../config';
 import { useTheme } from '../context/ThemeContext';
 
@@ -35,6 +36,7 @@ const ProfileScreen = ({ navigation }) => {
   const [kycStatus, setKycStatus] = useState(null);
   const [profileImage, setProfileImage] = useState(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
   
   const [editData, setEditData] = useState({
     firstName: '',
@@ -424,6 +426,50 @@ const ProfileScreen = ({ navigation }) => {
     setIsSubmitting(false);
   };
 
+  // Check for OTA updates
+  const checkForUpdates = async () => {
+    setIsCheckingUpdate(true);
+    try {
+      const update = await Updates.checkForUpdateAsync();
+      if (update.isAvailable) {
+        Alert.alert(
+          'Update Available',
+          'A new version is available. Would you like to update now?',
+          [
+            { text: 'Later', style: 'cancel', onPress: () => setIsCheckingUpdate(false) },
+            {
+              text: 'Update Now',
+              onPress: async () => {
+                try {
+                  await Updates.fetchUpdateAsync();
+                  Alert.alert(
+                    'Update Downloaded',
+                    'The app will now restart to apply the update.',
+                    [{ text: 'OK', onPress: () => Updates.reloadAsync() }]
+                  );
+                } catch (e) {
+                  Alert.alert('Error', 'Failed to download update');
+                  setIsCheckingUpdate(false);
+                }
+              },
+            },
+          ]
+        );
+      } else {
+        Alert.alert('Up to Date', 'You are running the latest version.');
+        setIsCheckingUpdate(false);
+      }
+    } catch (e) {
+      // In development mode, expo-updates is not available
+      if (__DEV__) {
+        Alert.alert('Development Mode', 'Updates are not available in development mode. Build a release version to test updates.');
+      } else {
+        Alert.alert('Error', 'Could not check for updates. Please try again later.');
+      }
+      setIsCheckingUpdate(false);
+    }
+  };
+
   if (loading) {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: colors.bgPrimary }]}>
@@ -590,6 +636,26 @@ const ProfileScreen = ({ navigation }) => {
               <Text style={[styles.actionText, { color: colors.textPrimary }]}>Change Password</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#666" />
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={[styles.actionItem, { backgroundColor: colors.bgCard }]} 
+            onPress={checkForUpdates}
+            disabled={isCheckingUpdate}
+          >
+            <View style={styles.actionLeft}>
+              <View style={[styles.actionIcon, { backgroundColor: '#22c55e20' }]}>
+                <Ionicons name="cloud-download-outline" size={20} color="#22c55e" />
+              </View>
+              <Text style={[styles.actionText, { color: colors.textPrimary }]}>
+                {isCheckingUpdate ? 'Checking...' : 'Check for Updates'}
+              </Text>
+            </View>
+            {isCheckingUpdate ? (
+              <ActivityIndicator size="small" color={colors.accent} />
+            ) : (
+              <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+            )}
           </TouchableOpacity>
         </View>
       </ScrollView>

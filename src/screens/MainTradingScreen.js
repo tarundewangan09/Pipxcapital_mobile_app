@@ -3552,7 +3552,7 @@ const ChartTab = ({ route }) => {
     setShowOrderPanel(true);
   };
 
-  // One-click trade execution - Fast execution
+  // One-click trade execution - Fast execution with fresh prices
   const executeOneClickTrade = async (side, slPrice = null) => {
     if (isExecuting) return;
     
@@ -3568,14 +3568,38 @@ const ChartTab = ({ route }) => {
       toast?.showToast('Please select a trading account first', 'error');
       return;
     }
-    if (!currentPrice?.bid || !currentPrice?.ask) {
-      toast?.showToast('No price data available', 'error');
-      return;
-    }
     
     setIsExecuting(true);
+    toast?.showToast('Fetching live price...', 'info');
+    
     try {
-      const price = side === 'BUY' ? currentPrice.ask : currentPrice.bid;
+      // Fetch fresh prices from API to prevent stale price exploitation
+      let freshBid, freshAsk;
+      try {
+        const priceRes = await fetch(`${API_URL}/prices/${activeSymbol}`);
+        const priceData = await priceRes.json();
+        
+        if (priceData.success && priceData.price?.bid && priceData.price?.ask) {
+          freshBid = priceData.price.bid;
+          freshAsk = priceData.price.ask;
+        }
+      } catch (e) {
+        console.error('Error fetching fresh price:', e);
+      }
+      
+      // Fallback to cached prices only if API fails
+      if (!freshBid || !freshAsk) {
+        freshBid = currentPrice?.bid;
+        freshAsk = currentPrice?.ask;
+      }
+      
+      if (!freshBid || !freshAsk) {
+        toast?.showToast('No price data available', 'error');
+        setIsExecuting(false);
+        return;
+      }
+      
+      const price = side === 'BUY' ? freshAsk : freshBid;
       const segment = currentInstrument?.category || 'Forex';
       
       const orderData = {
@@ -3587,8 +3611,8 @@ const ChartTab = ({ route }) => {
         segment: segment,
         side: side,
         quantity: volume,
-        bid: currentPrice.bid,
-        ask: currentPrice.ask,
+        bid: freshBid,
+        ask: freshAsk,
         leverage: ctx.isChallengeMode ? ctx.selectedChallengeAccount?.leverage : ctx.selectedAccount?.leverage || '1:100',
         orderType: 'MARKET'
       };
@@ -3637,8 +3661,36 @@ const ChartTab = ({ route }) => {
     }
     
     setIsExecuting(true);
+    toast?.showToast('Fetching live price...', 'info');
+    
     try {
-      const price = orderSide === 'BUY' ? currentPrice?.ask : currentPrice?.bid;
+      // Fetch fresh prices from API to prevent stale price exploitation
+      let freshBid, freshAsk;
+      try {
+        const priceRes = await fetch(`${API_URL}/prices/${activeSymbol}`);
+        const priceData = await priceRes.json();
+        
+        if (priceData.success && priceData.price?.bid && priceData.price?.ask) {
+          freshBid = priceData.price.bid;
+          freshAsk = priceData.price.ask;
+        }
+      } catch (e) {
+        console.error('Error fetching fresh price:', e);
+      }
+      
+      // Fallback to cached prices only if API fails
+      if (!freshBid || !freshAsk) {
+        freshBid = currentPrice?.bid;
+        freshAsk = currentPrice?.ask;
+      }
+      
+      if (!freshBid || !freshAsk) {
+        toast?.showToast('No price data available', 'error');
+        setIsExecuting(false);
+        return;
+      }
+      
+      const price = orderSide === 'BUY' ? freshAsk : freshBid;
       const segment = currentInstrument?.category || 'Forex';
       
       // Use challenge account ID if in challenge mode
@@ -3653,8 +3705,8 @@ const ChartTab = ({ route }) => {
         segment: segment,
         side: orderSide,
         quantity: volume,
-        bid: currentPrice?.bid,
-        ask: currentPrice?.ask,
+        bid: freshBid,
+        ask: freshAsk,
         leverage: ctx.selectedAccount?.leverage || '1:100',
         orderType: 'MARKET'
       };
