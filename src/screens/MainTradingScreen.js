@@ -1695,10 +1695,29 @@ const QuotesTab = ({ navigation }) => {
     });
     
     setIsExecuting(true);
+    toast?.showToast('Fetching live price...', 'info');
+    
     try {
-      const prices = ctx.livePrices[selectedInstrument.symbol];
-      const bid = prices?.bid;
-      const ask = prices?.ask;
+      // Fetch fresh prices from API to prevent stale price exploitation
+      let bid, ask;
+      try {
+        const priceRes = await fetch(`${API_URL}/prices/${selectedInstrument.symbol}`);
+        const priceData = await priceRes.json();
+        
+        if (priceData.success && priceData.price?.bid && priceData.price?.ask) {
+          bid = priceData.price.bid;
+          ask = priceData.price.ask;
+        }
+      } catch (e) {
+        console.error('Error fetching fresh price:', e);
+      }
+      
+      // Fallback to cached prices only if API fails
+      if (!bid || !ask) {
+        const cachedPrices = ctx.livePrices[selectedInstrument.symbol];
+        bid = cachedPrices?.bid;
+        ask = cachedPrices?.ask;
+      }
       
       // Validate prices
       if (!bid || !ask || bid <= 0 || ask <= 0) {
