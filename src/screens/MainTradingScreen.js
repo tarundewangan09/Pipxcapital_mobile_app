@@ -147,6 +147,7 @@ const TradingProvider = ({ children, navigation, route }) => {
   const [tradeHistory, setTradeHistory] = useState([]);
   const [instruments, setInstruments] = useState(defaultInstruments);
   const [livePrices, setLivePrices] = useState({});
+  const [pricesReady, setPricesReady] = useState(false); // Track if fresh prices are loaded
   const [adminSpreads, setAdminSpreads] = useState({});
   const [loading, setLoading] = useState(true);
   const [accountSummary, setAccountSummary] = useState({
@@ -329,6 +330,7 @@ const TradingProvider = ({ children, navigation, route }) => {
       if (prices && Object.keys(prices).length > 0) {
         // Tick-to-tick updates - immediate state update for fastest price display
         setLivePrices(prev => ({ ...prev, ...prices }));
+        setPricesReady(true); // Mark prices as ready when we receive WebSocket updates
         
         // Update instruments immediately
         setInstruments(prev => prev.map(inst => {
@@ -402,8 +404,11 @@ const TradingProvider = ({ children, navigation, route }) => {
 
     const subscription = AppState.addEventListener('change', (nextAppState) => {
       if (nextAppState === 'active') {
-        // App came to foreground - refresh prices immediately
-        refreshAllPrices();
+        // App came to foreground - set prices as not ready until fresh prices are loaded
+        setPricesReady(false);
+        refreshAllPrices().then(() => {
+          setPricesReady(true);
+        });
       }
     });
 
@@ -785,6 +790,7 @@ const TradingProvider = ({ children, navigation, route }) => {
       marketWatchNews, loadingNews, fetchMarketWatchNews,
       getActiveTradingAccountId, getActiveAccountInfo,
       currentMainTab, setCurrentMainTab,
+      pricesReady,
       navigation
     }}>
       {children}
@@ -2279,21 +2285,21 @@ const QuotesTab = ({ navigation }) => {
               {/* Final Buy/Sell Buttons - Slim */}
               <View style={styles.finalTradeRow}>
                 <TouchableOpacity 
-                  style={[styles.finalSellBtn, isExecuting && styles.btnDisabled]}
+                  style={[styles.finalSellBtn, (isExecuting || !ctx.pricesReady) && styles.btnDisabled]}
                   onPress={() => { setOrderSide('SELL'); executeTrade(); }}
-                  disabled={isExecuting}
+                  disabled={isExecuting || !ctx.pricesReady}
                 >
                   <Text style={styles.finalBtnText}>
-                    {isExecuting ? 'EXECUTING...' : orderType === 'PENDING' ? `SELL ${pendingType}` : 'SELL'}
+                    {!ctx.pricesReady ? 'LOADING...' : isExecuting ? 'EXECUTING...' : orderType === 'PENDING' ? `SELL ${pendingType}` : 'SELL'}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity 
-                  style={[styles.finalBuyBtn, isExecuting && styles.btnDisabled]}
+                  style={[styles.finalBuyBtn, (isExecuting || !ctx.pricesReady) && styles.btnDisabled]}
                   onPress={() => { setOrderSide('BUY'); executeTrade(); }}
-                  disabled={isExecuting}
+                  disabled={isExecuting || !ctx.pricesReady}
                 >
                   <Text style={styles.finalBtnText}>
-                    {isExecuting ? 'EXECUTING...' : orderType === 'PENDING' ? `BUY ${pendingType}` : 'BUY'}
+                    {!ctx.pricesReady ? 'LOADING...' : isExecuting ? 'EXECUTING...' : orderType === 'PENDING' ? `BUY ${pendingType}` : 'BUY'}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -2840,14 +2846,14 @@ const TradeTab = () => {
       {/* Close All Buttons - Only show when positions tab is active and has trades */}
       {tradeTab === 'positions' && ctx.openTrades.length > 0 && (
         <View style={styles.closeAllRow}>
-          <TouchableOpacity style={styles.closeAllBtn} onPress={() => closeAllTrades('all')}>
-            <Text style={styles.closeAllText}>Close All ({ctx.openTrades.length})</Text>
+          <TouchableOpacity style={[styles.closeAllBtn, !ctx.pricesReady && styles.btnDisabled]} onPress={() => closeAllTrades('all')} disabled={!ctx.pricesReady}>
+            <Text style={styles.closeAllText}>{ctx.pricesReady ? `Close All (${ctx.openTrades.length})` : 'Loading...'}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.closeProfitBtn} onPress={() => closeAllTrades('profit')}>
-            <Text style={styles.closeProfitText}>Close Profit</Text>
+          <TouchableOpacity style={[styles.closeProfitBtn, !ctx.pricesReady && styles.btnDisabled]} onPress={() => closeAllTrades('profit')} disabled={!ctx.pricesReady}>
+            <Text style={styles.closeProfitText}>{ctx.pricesReady ? 'Close Profit' : '...'}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.closeLossBtn} onPress={() => closeAllTrades('loss')}>
-            <Text style={styles.closeLossText}>Close Loss</Text>
+          <TouchableOpacity style={[styles.closeLossBtn, !ctx.pricesReady && styles.btnDisabled]} onPress={() => closeAllTrades('loss')} disabled={!ctx.pricesReady}>
+            <Text style={styles.closeLossText}>{ctx.pricesReady ? 'Close Loss' : '...'}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -2869,11 +2875,12 @@ const TradeTab = () => {
               const renderRightActions = (progress, dragX) => {
                 return (
                   <TouchableOpacity 
-                    style={styles.swipeCloseBtn} 
+                    style={[styles.swipeCloseBtn, !ctx.pricesReady && styles.btnDisabled]} 
                     onPress={() => closeTrade(trade)}
+                    disabled={!ctx.pricesReady}
                   >
                     <Ionicons name="close-circle" size={24} color="#fff" />
-                    <Text style={styles.swipeCloseText}>Close</Text>
+                    <Text style={styles.swipeCloseText}>{ctx.pricesReady ? 'Close' : 'Loading...'}</Text>
                   </TouchableOpacity>
                 );
               };
@@ -3250,11 +3257,12 @@ const TradeTab = () => {
                     <Text style={styles.detailEditText}>Edit SL/TP</Text>
                   </TouchableOpacity>
                   <TouchableOpacity 
-                    style={styles.detailCloseBtn} 
+                    style={[styles.detailCloseBtn, !ctx.pricesReady && styles.btnDisabled]} 
                     onPress={() => { setShowTradeDetails(false); closeTrade(detailTrade); }}
+                    disabled={!ctx.pricesReady}
                   >
                     <Ionicons name="close-circle" size={18} color="#fff" />
-                    <Text style={styles.detailCloseText}>Close Trade</Text>
+                    <Text style={styles.detailCloseText}>{ctx.pricesReady ? 'Close Trade' : 'Loading...'}</Text>
                   </TouchableOpacity>
                 </View>
               </ScrollView>
@@ -3877,11 +3885,11 @@ const ChartTab = ({ route }) => {
       <View style={[styles.quickTradeBarTop, { backgroundColor: colors.bgCard, borderBottomColor: colors.border }]}>
         {/* SELL Button with Price */}
         <TouchableOpacity 
-          style={[styles.sellPriceBtn, isExecuting && styles.btnDisabled]}
+          style={[styles.sellPriceBtn, (isExecuting || !ctx.pricesReady) && styles.btnDisabled]}
           onPress={() => executeOneClickTrade('SELL')}
-          disabled={isExecuting}
+          disabled={isExecuting || !ctx.pricesReady}
         >
-          <Text style={styles.sellLabel}>sell</Text>
+          <Text style={styles.sellLabel}>{!ctx.pricesReady ? 'loading' : 'sell'}</Text>
           <Text style={styles.sellPrice}>{currentPrice?.bid?.toFixed(decimals) || '-'}</Text>
         </TouchableOpacity>
 
@@ -3923,11 +3931,11 @@ const ChartTab = ({ route }) => {
 
         {/* BUY Button with Price */}
         <TouchableOpacity 
-          style={[styles.buyPriceBtn, isExecuting && styles.btnDisabled]}
+          style={[styles.buyPriceBtn, (isExecuting || !ctx.pricesReady) && styles.btnDisabled]}
           onPress={() => executeOneClickTrade('BUY')}
-          disabled={isExecuting}
+          disabled={isExecuting || !ctx.pricesReady}
         >
-          <Text style={styles.buyLabel}>buy</Text>
+          <Text style={styles.buyLabel}>{!ctx.pricesReady ? 'loading' : 'buy'}</Text>
           <Text style={styles.buyPrice}>{currentPrice?.ask?.toFixed(decimals) || '-'}</Text>
         </TouchableOpacity>
       </View>
@@ -4019,11 +4027,13 @@ const ChartTab = ({ route }) => {
 
             {/* Execute Button */}
             <TouchableOpacity 
-              style={[styles.executeBtn, { backgroundColor: orderSide === 'BUY' ? '#22c55e' : '#ef4444' }, isExecuting && { opacity: 0.6 }]}
+              style={[styles.executeBtn, { backgroundColor: orderSide === 'BUY' ? '#22c55e' : '#ef4444' }, (isExecuting || !ctx.pricesReady) && { opacity: 0.6 }]}
               onPress={executeTrade}
-              disabled={isExecuting}
+              disabled={isExecuting || !ctx.pricesReady}
             >
-              {isExecuting ? (
+              {!ctx.pricesReady ? (
+                <Text style={styles.executeBtnText}>LOADING PRICES...</Text>
+              ) : isExecuting ? (
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
                 <Text style={styles.executeBtnText}>
