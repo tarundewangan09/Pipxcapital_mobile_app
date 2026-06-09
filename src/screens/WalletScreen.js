@@ -23,6 +23,8 @@ import { WebView } from 'react-native-webview';
 import { API_URL } from '../config';
 import { useTheme } from '../context/ThemeContext';
 
+const GLOBAL_FEED_PAYMENT_URL = 'https://globalfeed.in/contentPage?id=6a16869d65aa9d1120cb97fa';
+
 const WalletScreen = ({ navigation }) => {
   const { colors, isDark } = useTheme();
   const [user, setUser] = useState(null);
@@ -664,6 +666,15 @@ const WalletScreen = ({ navigation }) => {
                     </Text>
                   </TouchableOpacity>
                 )}
+                <TouchableOpacity
+                  style={[styles.methodCard, { backgroundColor: colors.bgSecondary, borderColor: colors.border }, selectedMethod?.type === 'Global Feed' && { backgroundColor: '#3b82f6', borderColor: '#3b82f6' }]}
+                  onPress={() => setSelectedMethod({ _id: 'global-feed', type: 'Global Feed' })}
+                >
+                  <Ionicons name="globe-outline" size={16} color={selectedMethod?.type === 'Global Feed' ? '#fff' : '#3b82f6'} style={{ marginRight: 4 }} />
+                  <Text style={[styles.methodName, { color: colors.textPrimary }, selectedMethod?.type === 'Global Feed' && { color: '#fff' }]}>
+                    Global Feed
+                  </Text>
+                </TouchableOpacity>
               </ScrollView>
             )}
 
@@ -681,8 +692,28 @@ const WalletScreen = ({ navigation }) => {
               </View>
             )}
 
+            {/* Global Feed Payment Info */}
+            {selectedMethod?.type === 'Global Feed' && (
+              <View style={[styles.cryptoInfoBox, { backgroundColor: '#3b82f620', borderColor: '#3b82f650' }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <Ionicons name="globe-outline" size={18} color="#3b82f6" />
+                  <Text style={{ color: '#3b82f6', fontWeight: '600', fontSize: 14 }}>Global Feed Payment Gateway</Text>
+                </View>
+                <Text style={{ color: '#999', fontSize: 12, lineHeight: 18, marginBottom: 10 }}>
+                  Tap below to open the Global Feed payment page. After paying, enter the transaction reference and upload the screenshot, then submit.
+                </Text>
+                <TouchableOpacity
+                  style={{ backgroundColor: '#3b82f6', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 8, flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 6 }}
+                  onPress={() => setPaymentWebViewUrl(GLOBAL_FEED_PAYMENT_URL)}
+                >
+                  <Ionicons name="open-outline" size={14} color="#fff" />
+                  <Text style={{ color: '#fff', fontWeight: '600', fontSize: 13 }}>Pay via Global Feed</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
             {/* Payment Method Details */}
-            {selectedMethod && selectedMethod.type !== 'Crypto' && (
+            {selectedMethod && selectedMethod.type !== 'Crypto' && selectedMethod.type !== 'Global Feed' && (
               <View style={[styles.methodDetails, { backgroundColor: colors.bgSecondary, borderColor: colors.border }]}>
                 {selectedMethod.type === 'Bank Transfer' && (
                   <>
