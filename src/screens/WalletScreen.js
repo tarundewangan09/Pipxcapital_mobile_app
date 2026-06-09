@@ -152,6 +152,57 @@ const WalletScreen = ({ navigation }) => {
     }
   };
 
+  const handleGlobalFeedPay = async () => {
+    if (!localAmount || parseFloat(localAmount) <= 0) {
+      Alert.alert('Error', 'Please enter a valid amount');
+      return;
+    }
+
+    setOxapayLoading(true);
+    try {
+      const usdAmount = selectedCurrency && selectedCurrency.currency !== 'USD'
+        ? calculateUSDAmount(parseFloat(localAmount), selectedCurrency)
+        : parseFloat(localAmount);
+
+      const res = await fetch(`${API_URL}/wallet/deposit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user._id,
+          amount: usdAmount,
+          localAmount: parseFloat(localAmount),
+          currency: selectedCurrency?.currency || 'USD',
+          currencySymbol: selectedCurrency?.symbol || '$',
+          exchangeRate: selectedCurrency?.rateToUSD || 1,
+          markup: selectedCurrency?.markup || 0,
+          paymentMethod: 'Global Feed',
+          transactionRef: '',
+          screenshot: null
+        })
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        setShowDepositModal(false);
+        setLocalAmount('');
+        setSelectedMethod(null);
+        setSelectedCurrency({ currency: 'USD', symbol: '$', rateToUSD: 1, markup: 0 });
+        setPaymentWebViewUrl(GLOBAL_FEED_PAYMENT_URL);
+        Alert.alert(
+          'Deposit Submitted',
+          'Your deposit is recorded as Pending. Complete payment on Global Feed. Admin will verify and credit your wallet shortly.'
+        );
+        fetchWalletData();
+      } else {
+        Alert.alert('Error', data.message || 'Failed to initiate Global Feed payment');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Error initiating payment: ' + error.message);
+    } finally {
+      setOxapayLoading(false);
+    }
+  };
+
   const handleCryptoWithdraw = async () => {
     if (!amount || parseFloat(amount) <= 0) {
       Alert.alert('Error', 'Please enter a valid amount');
@@ -699,16 +750,9 @@ const WalletScreen = ({ navigation }) => {
                   <Ionicons name="globe-outline" size={18} color="#3b82f6" />
                   <Text style={{ color: '#3b82f6', fontWeight: '600', fontSize: 14 }}>Global Feed Payment Gateway</Text>
                 </View>
-                <Text style={{ color: '#999', fontSize: 12, lineHeight: 18, marginBottom: 10 }}>
-                  Tap below to open the Global Feed payment page. After paying, enter the transaction reference and upload the screenshot, then submit.
+                <Text style={{ color: '#999', fontSize: 12, lineHeight: 18 }}>
+                  Tap <Text style={{ color: '#3b82f6', fontWeight: '600' }}>"Pay via Global Feed"</Text> below — we'll open the payment page and record your deposit as <Text style={{ color: '#facc15', fontWeight: '600' }}>Pending</Text>. Admin will verify the payment on Global Feed and credit your wallet shortly.
                 </Text>
-                <TouchableOpacity
-                  style={{ backgroundColor: '#3b82f6', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 8, flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 6 }}
-                  onPress={() => setPaymentWebViewUrl(GLOBAL_FEED_PAYMENT_URL)}
-                >
-                  <Ionicons name="open-outline" size={14} color="#fff" />
-                  <Text style={{ color: '#fff', fontWeight: '600', fontSize: 13 }}>Pay via Global Feed</Text>
-                </TouchableOpacity>
               </View>
             )}
 
@@ -769,8 +813,8 @@ const WalletScreen = ({ navigation }) => {
               </View>
             )}
 
-            {/* Transaction ref - only for non-crypto */}
-            {selectedMethod?.type !== 'Crypto' && (
+            {/* Transaction ref - only for non-crypto, non-globalfeed */}
+            {selectedMethod?.type !== 'Crypto' && selectedMethod?.type !== 'Global Feed' && (
               <>
                 <Text style={[styles.inputLabel, { color: colors.textMuted }]}>Transaction ID / Reference Number *</Text>
                 <TextInput
@@ -811,8 +855,8 @@ const WalletScreen = ({ navigation }) => {
             )}
 
             {selectedMethod?.type === 'Crypto' ? (
-              <TouchableOpacity 
-                style={[styles.submitBtn, { backgroundColor: '#f97316' }, oxapayLoading && styles.submitBtnDisabled]} 
+              <TouchableOpacity
+                style={[styles.submitBtn, { backgroundColor: '#f97316' }, oxapayLoading && styles.submitBtnDisabled]}
                 onPress={handleCryptoDeposit}
                 disabled={oxapayLoading}
               >
@@ -825,9 +869,24 @@ const WalletScreen = ({ navigation }) => {
                   </View>
                 )}
               </TouchableOpacity>
+            ) : selectedMethod?.type === 'Global Feed' ? (
+              <TouchableOpacity
+                style={[styles.submitBtn, { backgroundColor: '#3b82f6' }, oxapayLoading && styles.submitBtnDisabled]}
+                onPress={handleGlobalFeedPay}
+                disabled={oxapayLoading}
+              >
+                {oxapayLoading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Ionicons name="open-outline" size={18} color="#fff" />
+                    <Text style={[styles.submitBtnText, { color: '#fff' }]}>Pay via Global Feed</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
             ) : (
-              <TouchableOpacity 
-                style={[styles.submitBtn, { backgroundColor: colors.accent }, isSubmitting && styles.submitBtnDisabled]} 
+              <TouchableOpacity
+                style={[styles.submitBtn, { backgroundColor: colors.accent }, isSubmitting && styles.submitBtnDisabled]}
                 onPress={handleDeposit}
                 disabled={isSubmitting}
               >
