@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -2532,8 +2532,24 @@ const QuotesTab = ({ navigation }) => {
 // TRADE TAB - Account summary + Positions/Pending/History (like mobile web view)
 const TradeTab = () => {
   const ctx = React.useContext(TradingContext);
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const toast = useToast();
+  // Theme-aware override for the trade detail modals. The base StyleSheet has
+  // hardcoded dark colors (#000 bg, #fff text) that look broken in light mode.
+  // Shadow the module-level `styles` reference so all `styles.X` lookups
+  // inside TradeTab pick up the themed overrides automatically.
+  const styles = useMemo(() => ({
+    ...baseStyles,
+    tradeDetailsContent: { ...baseStyles.tradeDetailsContent, backgroundColor: colors.bgCard },
+    slTpModalContent: { ...baseStyles.slTpModalContent, backgroundColor: colors.bgCard },
+    slTpModalTitle: { ...baseStyles.slTpModalTitle, color: colors.textPrimary },
+    detailSection: { ...baseStyles.detailSection, borderBottomColor: colors.border },
+    detailLabel: { ...baseStyles.detailLabel, color: colors.textMuted },
+    detailValue: { ...baseStyles.detailValue, color: colors.textPrimary },
+    confirmCloseModal: { ...baseStyles.confirmCloseModal, backgroundColor: colors.bgCard },
+    confirmCloseTitle: { ...baseStyles.confirmCloseTitle, color: colors.textPrimary },
+    confirmCloseMessage: { ...baseStyles.confirmCloseMessage, color: colors.textSecondary },
+  }), [colors]);
   const [tradeTab, setTradeTab] = useState('positions');
   const [showSlTpModal, setShowSlTpModal] = useState(false);
   const [selectedTrade, setSelectedTrade] = useState(null);
@@ -4329,7 +4345,7 @@ const MainTradingScreen = ({ navigation, route }) => {
 // Gold color constant
 const GOLD = '#dc2626';
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0a0a0a' },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0a0a0a' },
   tabBar: { backgroundColor: '#0a0a0a', borderTopColor: '#0a0a0a', height: 60, paddingBottom: 8 },
@@ -5289,5 +5305,9 @@ const styles = StyleSheet.create({
   quickSlConfirmBtn: { flex: 1, paddingVertical: 14, borderRadius: 10, alignItems: 'center' },
   quickSlConfirmBtnText: { color: '#fff', fontSize: 15, fontWeight: 'bold' },
 });
+
+// All non-TradeTab components continue to use the static base styles.
+// TradeTab shadows this with a theme-aware override (see TradeTab itself).
+const styles = baseStyles;
 
 export default MainTradingScreen;
