@@ -123,6 +123,33 @@ const toastStyles = StyleSheet.create({
 
 const useToast = () => React.useContext(ToastContext);
 
+// Validate pending order price against current market (MT5 rules)
+// Returns warning string when invalid, null when OK
+const validatePendingPriceLocal = (orderTypeStr, priceStr, livePrice, instrument) => {
+  if (!priceStr) return null;
+  const price = parseFloat(priceStr);
+  if (!Number.isFinite(price) || price <= 0) return null;
+  const bid = livePrice?.bid || instrument?.bid;
+  const ask = livePrice?.ask || instrument?.ask;
+  if (!bid || !ask || bid <= 0 || ask <= 0) return null;
+  const fmt = (v) => v.toFixed(5);
+  switch (orderTypeStr) {
+    case 'BUY_LIMIT':
+      if (price >= ask) return `Buy Limit must be below current Ask (${fmt(ask)}). Use Buy Stop for prices above market.`;
+      break;
+    case 'SELL_LIMIT':
+      if (price <= bid) return `Sell Limit must be above current Bid (${fmt(bid)}). Use Sell Stop for prices below market.`;
+      break;
+    case 'BUY_STOP':
+      if (price <= ask) return `Buy Stop must be above current Ask (${fmt(ask)}). Use Buy Limit for prices below market.`;
+      break;
+    case 'SELL_STOP':
+      if (price >= bid) return `Sell Stop must be below current Bid (${fmt(bid)}). Use Sell Limit for prices above market.`;
+      break;
+  }
+  return null;
+};
+
 // Default instruments - fallback only, will be replaced by API data
 const defaultInstruments = [
   // Minimal fallback - actual instruments fetched from backend API
@@ -1791,6 +1818,17 @@ const QuotesTab = ({ navigation }) => {
         return;
       }
 
+      // Validate pending price against current market (MT5 rules)
+      if (orderType === 'PENDING') {
+        const orderTypeStr = `${effectiveSide}_${pendingType}`;
+        const warning = validatePendingPriceLocal(orderTypeStr, pendingPrice, ctx.livePrices[selectedInstrument?.symbol], selectedInstrument);
+        if (warning) {
+          toast?.showToast(warning, 'warning');
+          setIsExecuting(false);
+          return;
+        }
+      }
+
       const segment = getSymbolCategory(selectedInstrument.symbol);
       
       // For pending orders, use entry price for bid/ask (matching web version)
@@ -2179,6 +2217,15 @@ const QuotesTab = ({ navigation }) => {
                     placeholderTextColor={colors.textMuted}
                     keyboardType="decimal-pad"
                   />
+                  {(() => {
+                    // Show the warning for whichever side is currently selected (orderSide state)
+                    const w = validatePendingPriceLocal(`${orderSide}_${pendingType}`, pendingPrice, ctx.livePrices[selectedInstrument?.symbol], selectedInstrument);
+                    return w ? (
+                      <View style={{ marginTop: 6, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: 'rgba(239,68,68,0.10)', borderColor: 'rgba(239,68,68,0.30)', borderWidth: 1, borderRadius: 6 }}>
+                        <Text style={{ color: '#f87171', fontSize: 11, lineHeight: 16 }}>⚠ {w}</Text>
+                      </View>
+                    ) : null;
+                  })()}
                 </View>
               )}
 
@@ -2284,24 +2331,32 @@ const QuotesTab = ({ navigation }) => {
 
               {/* Final Buy/Sell Buttons - Slim */}
               <View style={styles.finalTradeRow}>
-                <TouchableOpacity 
-                  style={[styles.finalSellBtn, (isExecuting || !ctx.pricesReady) && styles.btnDisabled]}
-                  onPress={() => { setOrderSide('SELL'); executeTrade(); }}
-                  disabled={isExecuting || !ctx.pricesReady}
-                >
-                  <Text style={styles.finalBtnText}>
-                    {!ctx.pricesReady ? 'LOADING...' : isExecuting ? 'EXECUTING...' : orderType === 'PENDING' ? `SELL ${pendingType}` : 'SELL'}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={[styles.finalBuyBtn, (isExecuting || !ctx.pricesReady) && styles.btnDisabled]}
-                  onPress={() => { setOrderSide('BUY'); executeTrade(); }}
-                  disabled={isExecuting || !ctx.pricesReady}
-                >
-                  <Text style={styles.finalBtnText}>
-                    {!ctx.pricesReady ? 'LOADING...' : isExecuting ? 'EXECUTING...' : orderType === 'PENDING' ? `BUY ${pendingType}` : 'BUY'}
-                  </Text>
-                </TouchableOpacity>
+                {(() => {
+                  const sellInvalid = orderType === 'PENDING' && !!validatePendingPriceLocal(`SELL_${pendingType}`, pendingPrice, ctx.livePrices[selectedInstrument?.symbol], selectedInstrument);
+                  const buyInvalid = orderType === 'PENDING' && !!validatePendingPriceLocal(`BUY_${pendingType}`, pendingPrice, ctx.livePrices[selectedInstrument?.symbol], selectedInstrument);
+                  return (
+                    <>
+                      <TouchableOpacity
+                        style={[styles.finalSellBtn, (isExecuting || !ctx.pricesReady || sellInvalid) && styles.btnDisabled]}
+                        onPress={() => { setOrderSide('SELL'); executeTrade(); }}
+                        disabled={isExecuting || !ctx.pricesReady || sellInvalid}
+                      >
+                        <Text style={styles.finalBtnText}>
+                          {!ctx.pricesReady ? 'LOADING...' : isExecuting ? 'EXECUTING...' : orderType === 'PENDING' ? `SELL ${pendingType}` : 'SELL'}
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.finalBuyBtn, (isExecuting || !ctx.pricesReady || buyInvalid) && styles.btnDisabled]}
+                        onPress={() => { setOrderSide('BUY'); executeTrade(); }}
+                        disabled={isExecuting || !ctx.pricesReady || buyInvalid}
+                      >
+                        <Text style={styles.finalBtnText}>
+                          {!ctx.pricesReady ? 'LOADING...' : isExecuting ? 'EXECUTING...' : orderType === 'PENDING' ? `BUY ${pendingType}` : 'BUY'}
+                        </Text>
+                      </TouchableOpacity>
+                    </>
+                  );
+                })()}
               </View>
             </View>
           </ScrollView>
