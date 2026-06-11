@@ -18,6 +18,9 @@ import * as SecureStore from 'expo-secure-store';
 import { API_URL } from '../config';
 import { useTheme } from '../context/ThemeContext';
 
+// Referral link base URL — keep aligned with web frontend (`${origin}/user/signup?ref=...`)
+const REFERRAL_BASE_URL = 'https://pipxcapital.com/user/signup';
+
 const IBScreen = ({ navigation }) => {
   const { colors, isDark } = useTheme();
   const [user, setUser] = useState(null);
@@ -184,7 +187,7 @@ const IBScreen = ({ navigation }) => {
 
   const copyReferralLink = async () => {
     if (ibProfile?.referralCode) {
-      const link = `https://yourapp.com/signup?ref=${ibProfile.referralCode}`;
+      const link = `${REFERRAL_BASE_URL}?ref=${ibProfile.referralCode}`;
       await Clipboard.setStringAsync(link);
       Alert.alert('Copied!', 'Referral link copied to clipboard');
     }
@@ -194,7 +197,7 @@ const IBScreen = ({ navigation }) => {
     if (ibProfile?.referralCode) {
       try {
         await Share.share({
-          message: `Join me on this amazing trading platform! Use my referral code: ${ibProfile.referralCode}\n\nSign up here: https://yourapp.com/signup?ref=${ibProfile.referralCode}`,
+          message: `Join me on this amazing trading platform! Use my referral code: ${ibProfile.referralCode}\n\nSign up here: ${REFERRAL_BASE_URL}?ref=${ibProfile.referralCode}`,
         });
       } catch (e) {
         console.error('Error sharing:', e);
@@ -359,7 +362,7 @@ const IBScreen = ({ navigation }) => {
             <View style={styles.referralLinkCard}>
               <Text style={styles.referralLinkLabel}>Your Referral Link</Text>
               <Text style={styles.referralLinkText} numberOfLines={1}>
-                https://yourapp.com/signup?ref={ibProfile?.referralCode}
+                {REFERRAL_BASE_URL}?ref={ibProfile?.referralCode}
               </Text>
               <Text style={styles.referralCodeText}>Code: <Text style={styles.referralCodeBold}>{ibProfile?.referralCode}</Text></Text>
               <View style={styles.referralActions}>
