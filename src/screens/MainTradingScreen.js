@@ -30,6 +30,7 @@ import * as SecureStore from 'expo-secure-store';
 import { API_URL, API_BASE_URL } from '../config';
 import { useTheme } from '../context/ThemeContext';
 import socketService from '../services/socketService';
+import AnimatedPrice from '../components/AnimatedPrice';
 
 const Tab = createBottomTabNavigator();
 const { width, height } = Dimensions.get('window');
@@ -1272,9 +1273,12 @@ const HomeTab = ({ navigation }) => {
             </View>
             <View style={{ alignItems: 'flex-end' }}>
               <Text style={[styles.balanceLabel, { color: colors.textMuted }]}>Equity</Text>
-              <Text style={[styles.equityValue, { color: ctx.totalFloatingPnl >= 0 ? colors.success : colors.error }]}>
-                ${ctx.realTimeEquity?.toFixed(2) || '0.00'}
-              </Text>
+              <AnimatedPrice
+                value={ctx.realTimeEquity ?? 0}
+                decimals={2}
+                prefix="$"
+                style={[styles.equityValue, { color: ctx.totalFloatingPnl >= 0 ? colors.success : colors.error }]}
+              />
             </View>
           </View>
 
@@ -1282,9 +1286,13 @@ const HomeTab = ({ navigation }) => {
           <View style={[styles.pnlRow, { borderTopColor: colors.border }]}>
             <View>
               <Text style={[styles.balanceLabel, { color: colors.textMuted }]}>Floating P&L</Text>
-              <Text style={[styles.pnlValue, { color: ctx.totalFloatingPnl >= 0 ? colors.success : colors.error }]}>
-                {ctx.totalFloatingPnl >= 0 ? '+' : ''}${ctx.totalFloatingPnl?.toFixed(2) || '0.00'}
-              </Text>
+              <AnimatedPrice
+                value={ctx.totalFloatingPnl ?? 0}
+                decimals={2}
+                signed
+                prefix="$"
+                style={[styles.pnlValue, { color: ctx.totalFloatingPnl >= 0 ? colors.success : colors.error }]}
+              />
             </View>
             <View style={{ alignItems: 'flex-end' }}>
               <Text style={[styles.balanceLabel, { color: colors.textMuted }]}>Free Margin</Text>
@@ -2134,9 +2142,11 @@ const QuotesTab = ({ navigation }) => {
                   disabled={isExecuting}
                 >
                   <Text style={styles.quickBtnLabel}>SELL</Text>
-                  <Text style={styles.quickBtnPrice}>
-                    {ctx.livePrices[selectedInstrument?.symbol]?.bid?.toFixed(selectedInstrument?.category === 'Forex' ? 5 : 2) || '-'}
-                  </Text>
+                  <AnimatedPrice
+                    value={ctx.livePrices[selectedInstrument?.symbol]?.bid}
+                    decimals={selectedInstrument?.category === 'Forex' ? 5 : 2}
+                    style={styles.quickBtnPrice}
+                  />
                 </TouchableOpacity>
                 <TouchableOpacity 
                   style={[styles.quickBuyBtn, isExecuting && styles.btnDisabled]}
@@ -2155,9 +2165,11 @@ const QuotesTab = ({ navigation }) => {
                   disabled={isExecuting}
                 >
                   <Text style={styles.quickBtnLabel}>BUY</Text>
-                  <Text style={styles.quickBtnPrice}>
-                    {ctx.livePrices[selectedInstrument?.symbol]?.ask?.toFixed(selectedInstrument?.category === 'Forex' ? 5 : 2) || '-'}
-                  </Text>
+                  <AnimatedPrice
+                    value={ctx.livePrices[selectedInstrument?.symbol]?.ask}
+                    decimals={selectedInstrument?.category === 'Forex' ? 5 : 2}
+                    style={styles.quickBtnPrice}
+                  />
                 </TouchableOpacity>
               </View>
 
@@ -2985,9 +2997,12 @@ const TradeTab = () => {
                         </TouchableOpacity>
                       </View>
                       <View style={styles.positionPnlCol}>
-                        <Text style={[styles.positionPnl, { color: pnl >= 0 ? '#22c55e' : '#ef4444' }]}>
-                          ${pnl >= 0 ? '' : '-'}{Math.abs(pnl).toFixed(2)}
-                        </Text>
+                        <AnimatedPrice
+                          value={pnl}
+                          decimals={2}
+                          prefix="$"
+                          style={[styles.positionPnl, { color: pnl >= 0 ? '#22c55e' : '#ef4444' }]}
+                        />
                         <Text style={[styles.currentPriceText, { color: colors.textMuted }]}>{currentPrice?.toFixed(5) || '-'}</Text>
                       </View>
                     </View>
@@ -3961,7 +3976,7 @@ const ChartTab = ({ route }) => {
           disabled={isExecuting || !ctx.pricesReady}
         >
           <Text style={styles.sellLabel}>{!ctx.pricesReady ? 'loading' : 'sell'}</Text>
-          <Text style={styles.sellPrice}>{currentPrice?.bid?.toFixed(decimals) || '-'}</Text>
+          <AnimatedPrice value={currentPrice?.bid} decimals={decimals} style={styles.sellPrice} />
         </TouchableOpacity>
 
         {/* Lot Size with +/- */}
@@ -4007,7 +4022,7 @@ const ChartTab = ({ route }) => {
           disabled={isExecuting || !ctx.pricesReady}
         >
           <Text style={styles.buyLabel}>{!ctx.pricesReady ? 'loading' : 'buy'}</Text>
-          <Text style={styles.buyPrice}>{currentPrice?.ask?.toFixed(decimals) || '-'}</Text>
+          <AnimatedPrice value={currentPrice?.ask} decimals={decimals} style={styles.buyPrice} />
         </TouchableOpacity>
       </View>
 
